@@ -93,7 +93,7 @@ fn _setup_stage_2_translation(
         //page_table3(bottom)の初期化処理
         for e in page_table {
             *e = (*physical_address as u64) | 2045 ; //初期化するよ
-            *physical_address += 1 << 9;
+            *physical_address += 1 << PAGE_SHIFT;
         }
     }else{
         //その他page_tableの初期化
@@ -108,7 +108,7 @@ fn _setup_stage_2_translation(
                 physical_address,
 
             )?;
-            *e = (next_table_address as u64) | 0b11;
+            *e = (next_table_address as u64) | PAGE_DESCRIPTORS_AF | PAGE_DESCRIPTORS_SH_INNER_SHAREABLE | PAGE_DESCRIPTORS_NT;
         }
     }
     return Ok(())
