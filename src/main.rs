@@ -56,7 +56,8 @@ extern "C" fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTabl
     assert_eq!(get_current_el() >> 2, 2, "Expected CurrentEL is EL2");
 
     paging::setup_stage_2_translation().expect("Failed to setup Stage2 Paging");//ここ変える
-
+    paging::map_address_stage2(0x40000000,0x80000000).expect("Failed to setup Stage2 Paging");
+    paging::map_address_stage2(PL011, 0x1000).expect("Failed to setup Stage2 Paging");
     /* Stack for BSP */
     let stack_address = allocate_memory(STACK_PAGES, None).expect("Failed to alloc stack")
         + (STACK_PAGES << PAGE_SHIFT);

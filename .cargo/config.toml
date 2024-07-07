@@ -1,6 +1,6 @@
 [build]
 target = "aarch64-unknown-uefi"
-target-dir = "../target/"
+rustflags = ["-C", "link-args=/debug:dwarf"]
 
 [unstable]
 build-std-features = ["compiler-builtins-mem"]
