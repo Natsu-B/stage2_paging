@@ -21,6 +21,10 @@ mod console;
 mod cpu;
 mod paging;
 mod uefi;
+mod exception;
+mod mmio {
+    pub mod pl011;
+}
 
 static mut IMAGE_HANDLE: EfiHandle = 0;
 static mut SYSTEM_TABLE: *const EfiSystemTable = core::ptr::null();
