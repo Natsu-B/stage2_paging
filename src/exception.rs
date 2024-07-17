@@ -14,10 +14,10 @@
 
 //例外テーブルつくるよ
 
-use core::arch::global_asm;
-use crate::get_esr_el2;
 use crate::cpu::*;
+use crate::get_esr_el2;
 use crate::mmio::pl011;
+use core::arch::global_asm;
 
 pub const ESR_EL2_EC_BITS_OFFSET: u64 = 26;
 pub const ESR_EL2_EC: u64 = 0b111111 << ESR_EL2_EC_BITS_OFFSET;
@@ -73,7 +73,7 @@ global_asm!(
     "
 .section .text
 .balign 0x800
-.size   exception_table, 0x800
+//.size   exception_table, 0x800
 .global exception_table
 exception_table:
 
@@ -225,12 +225,12 @@ extern "C" fn irq_handler() {}
 
 #[no_mangle]
 extern "C" fn synchronous_handler(registers: *mut Registers) {
-    println!("Synchronous Exception!");
-    println!("Fault at {:#X}", get_elr_el2());
+    /*println!("Synchronous Exception!");
+    println!("Fault at {:#X}", get_elr_el2());*/
     let esr_el2 = get_esr_el2();
     let ec = esr_el2 & ESR_EL2_EC;
     match ec {
-        ESP_EL2_EC_DATA_ABORT => data_abort_handler(unsafe{ &mut *registers }, esr_el2),
+        ESP_EL2_EC_DATA_ABORT => data_abort_handler(unsafe { &mut *registers }, esr_el2),
         _ => {
             panic!("Unkown Exception: {}", ec >> ESR_EL2_EC_BITS_OFFSET);
         }
@@ -259,9 +259,9 @@ fn data_abort_handler(registers: &mut Registers, esr_el2: u64) {
         << crate::paging::PAGE_SHIFT)
         | (get_far_el2() & ((1 << crate::paging::PAGE_SHIFT) - 1));
 
-    if (0x90000..0x91000).contains(&address) {
+    if (0x900_0000..0x9001000).contains(&address) {
         /* PL011 */
-        let offset = (address - 0x90000) as usize;
+        let offset = (address - 0x9000000) as usize;
         if is_write_access {
             let register_value = if is_64bit_register {
                 *register
@@ -285,4 +285,11 @@ fn data_abort_handler(registers: &mut Registers, esr_el2: u64) {
     }
 
     unsafe { advance_elr_el2() };
+}
+
+pub fn setup_exception() {
+    extern "C" {
+        static exception_table: *const u8;
+    }
+    unsafe { set_vbar_el2(&exception_table as *const _ as usize as u64) }
 }

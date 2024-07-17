@@ -19,9 +19,9 @@ const PL011: usize = 0x09000000;
 #[macro_use]
 mod console;
 mod cpu;
+mod exception;
 mod paging;
 mod uefi;
-mod exception;
 mod mmio {
     pub mod pl011;
 }
@@ -59,9 +59,9 @@ extern "C" fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTabl
 
     assert_eq!(get_current_el() >> 2, 2, "Expected CurrentEL is EL2");
 
-    paging::setup_stage_2_translation().expect("Failed to setup Stage2 Paging");//ここ変える
-    paging::map_address_stage2(0x40000000,0x80000000).expect("Failed to setup Stage2 Paging");
-    paging::map_address_stage2(PL011, 0x1000).expect("Failed to setup Stage2 Paging");
+    paging::setup_stage_2_translation().expect("Failed to setup Stage2 Paging"); //ここ変える
+    paging::map_address_stage2(0x40000000, 0x80000000).expect("Failed to setup Stage2 Paging");
+    //paging::map_address_stage2(PL011, 0x1000).expect("Failed to setup Stage2 Paging");
     /* Stack for BSP */
     let stack_address = allocate_memory(STACK_PAGES, None).expect("Failed to alloc stack")
         + (STACK_PAGES << PAGE_SHIFT);
@@ -72,6 +72,7 @@ extern "C" fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTabl
     /* After disabling IRQ/FIQ, we should avoid calling UEFI functions */
     local_irq_fiq_save();
 
+    exception::setup_exception();
     set_up_el1();
 
     /* Jump to EL1(el1_main) */

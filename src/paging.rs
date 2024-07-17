@@ -59,36 +59,37 @@ pub fn setup_stage_2_translation() -> Result<(), ()> {
     let ps = get_id_aa64mmfr0_el1() & ID_AA64MMFR0_EL1_PARANGE;
     println!("PS: {:b}", ps);
     let (t0sz, table_level) = match ps {
-        0b000 => (32u8, 1i8),//32bit
-        0b001 => (28u8, 1i8),//36bit
-        0b010 => (24u8, 1i8),//40bit
-        0b011 => (22u8, 0i8),//42bit
-        0b100 => (20u8, 0i8),//44bit
-        0b101 => (16u8, 0i8),//48bit
-        _ => (16u8, 0i8)//52,56bit //arm ref 7912 6580 t0szとtable_levelはconcated page tableと初期化に必要
+        0b000 => (32u8, 1i8), //32bit
+        0b001 => (28u8, 1i8), //36bit
+        0b010 => (24u8, 1i8), //40bit
+        0b011 => (22u8, 0i8), //42bit
+        0b100 => (20u8, 0i8), //44bit
+        0b101 => (16u8, 0i8), //48bit
+        _ => (16u8, 0i8), //52,56bit //arm ref 7912 6580 t0szとtable_levelはconcated page tableと初期化に必要
     };
     let mut physical_address = 0;
     let sl0 = if table_level == 1 { 0b01u64 } else { 0b10u64 };
-    let number_of_tables = calculate_number_of_concatenated_page_tables(t0sz, table_level);//あまりここはよくわからなかったからとりまMilvusVisorからコピペ
+    let number_of_tables = calculate_number_of_concatenated_page_tables(t0sz, table_level); //あまりここはよくわからなかったからとりまMilvusVisorからコピペ
     let table_address: usize =
-        allocate_page_table_for_stage_2(table_level, t0sz, true, number_of_tables)?;//返却型が Result<usize, ()>だから?でusize型のみにしてる?
-    let page_table = unsafe {//最初から 64bit number_of_tables * 512 だけ並べる配列を作ってる
-            core::slice::from_raw_parts_mut(
-                table_address as *mut u64,
-                (PAGE_TABLE_SIZE * number_of_tables as usize) / core::mem::size_of::<u64>(),
-            )
-        };
-        for e in page_table {
-            *e = 0;
-        }
+        allocate_page_table_for_stage_2(table_level, t0sz, true, number_of_tables)?; //返却型が Result<usize, ()>だから?でusize型のみにしてる?
+    let page_table = unsafe {
+        //最初から 64bit number_of_tables * 512 だけ並べる配列を作ってる
+        core::slice::from_raw_parts_mut(
+            table_address as *mut u64,
+            (PAGE_TABLE_SIZE * number_of_tables as usize) / core::mem::size_of::<u64>(),
+        )
+    };
+    for e in page_table {
+        *e = 0;
+    }
     //_setup_stage_2_translation(table_address, table_level, t0sz, number_of_tables as usize, &mut physical_address)?;
-    let vtcr_el2: u64 = VTCR_EL2_RES1 
-        | ((ps as u64) << VTCR_EL2_PS_BITS_OFFSET) 
+    let vtcr_el2: u64 = VTCR_EL2_RES1
+        | ((ps as u64) << VTCR_EL2_PS_BITS_OFFSET)
         | (0 << VTCR_EL2_TG0_BITS_OFFSET)
-        | (0b11 << VTCR_EL2_SH0_BITS_OFFSET) 
-        | (0b11 << VTCR_EL2_ORG0_BITS_OFFSET) 
-        | (0b11 << VTCR_EL2_IRG0_BITS_OFFSET) 
-        | (sl0  << VTCR_EL2_SL0_BITS_OFFSET) 
+        | (0b11 << VTCR_EL2_SH0_BITS_OFFSET)
+        | (0b11 << VTCR_EL2_ORG0_BITS_OFFSET)
+        | (0b11 << VTCR_EL2_IRG0_BITS_OFFSET)
+        | (sl0 << VTCR_EL2_SL0_BITS_OFFSET)
         | ((t0sz as u64) << VTCR_EL2_T0SZ_BITS_OFFSET);
     //VTCR_EL2 をセットする よくわからん～
     set_vtcr_el2(vtcr_el2);
@@ -98,10 +99,7 @@ pub fn setup_stage_2_translation() -> Result<(), ()> {
     Ok(())
 }
 
-pub fn map_address_stage2(
-    mut physical_address: usize,
-    mut map_size: usize,
-) -> Result<(), ()> {
+pub fn map_address_stage2(mut physical_address: usize, mut map_size: usize) -> Result<(), ()> {
     if (map_size & ((1usize << PAGE_SHIFT) - 1)) != 0 {
         println!("Map size is not aligned.");
         return Err(());
@@ -119,7 +117,10 @@ pub fn map_address_stage2(
         _ => unreachable!(),
     };
     println!("get table level {:#X}", table_level);
-    println!("first num_of_entries: {:#X}", (calculate_number_of_concatenated_page_tables(t0sz, table_level) as usize) * 512);
+    println!(
+        "first num_of_entries: {:#X}",
+        (calculate_number_of_concatenated_page_tables(t0sz, table_level) as usize) * 512
+    );
     _setup_stage_2_translation(
         page_table_address,
         table_level,
@@ -145,40 +146,50 @@ fn _setup_stage_2_translation(
     number_of_tables: usize,
     physical_address: &mut usize,
     num_of_pages: &mut usize,
-) -> Result<(), ()>{
+) -> Result<(), ()> {
     let mut i = 0;
     let shift_level = table_level_to_table_shift(STAGE_2_PAGE_SHIFT, table_level);
-    let table_index = (*physical_address >> shift_level) & (((PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>())  - 1);
-    if table_level < 3 { println!("{table_level}: {shift_level}: {table_index}");}
-    let page_table = unsafe {//最初から 64bit number_of_tables * 512 だけ並べる配列を作ってる
+    let table_index = (*physical_address >> shift_level)
+        & (((PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>()) - 1);
+    if table_level < 3 {
+        println!("{table_level}: {shift_level}: {table_index}");
+    }
+    let page_table = unsafe {
+        //最初から 64bit number_of_tables * 512 だけ並べる配列を作ってる
         core::slice::from_raw_parts_mut(
             table_address as *mut u64,
             (PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>(),
         )
     };
-   
-    if(3 == table_level){
+
+    if (3 == table_level) {
         //page_table3(bottom)の初期化処理
         for e in page_table[table_index..].iter_mut() {
-            *e = (*physical_address as u64) | PAGE_DESCRIPTORS_AF | PAGE_DESCRIPTORS_SH_INNER_SHAREABLE | PAGE_DESCRIPTORS_AP | PAGE_DESCRIPTORS_ATTR | 0b11 ; //初期化するよ
+            *e = (*physical_address as u64)
+                | PAGE_DESCRIPTORS_AF
+                | PAGE_DESCRIPTORS_SH_INNER_SHAREABLE
+                | PAGE_DESCRIPTORS_AP
+                | PAGE_DESCRIPTORS_ATTR
+                | 0b11; //初期化するよ
             *physical_address += 1 << shift_level;
             *num_of_pages -= 1;
-            if *num_of_pages == 0{
+            if *num_of_pages == 0 {
                 return Ok(());
             }
         }
-    }else{
+    } else {
         //その他page_tableの初期化
-        for e in page_table[table_index..].iter_mut()  {
-            let next_table_address:usize;
+        for e in page_table[table_index..].iter_mut() {
+            let next_table_address: usize;
             if *e & 0b11 == 0b11 {
-                next_table_address = (*e  as usize) & !0b11;
-                println!("Level{}[{}]: Exists",table_level,i);
-            }else {
-                next_table_address =  allocate_page_table_for_stage_2(table_level + 1, t0sz, false, 1)?;
-                println!("Level{}[{}]: Allocated",table_level,i);
+                next_table_address = (*e as usize) & !0b11;
+                println!("Level{}[{}]: Exists", table_level, i);
+            } else {
+                next_table_address =
+                    allocate_page_table_for_stage_2(table_level + 1, t0sz, false, 1)?;
+                println!("Level{}[{}]: Allocated", table_level, i);
             }
-            i+=1;
+            i += 1;
             _setup_stage_2_translation(
                 next_table_address,
                 table_level + 1,
@@ -187,8 +198,8 @@ fn _setup_stage_2_translation(
                 physical_address,
                 num_of_pages,
             )?;
-            *e = (next_table_address as u64) | 0b11 ; //初期化するよ
-            if *num_of_pages == 0{
+            *e = (next_table_address as u64) | 0b11; //初期化するよ
+            if *num_of_pages == 0 {
                 return Ok(());
             }
         }
@@ -213,7 +224,7 @@ fn _setup_stage_2_translation(
             *e = (next_table_address as u64) | 0b11;
         }
     }*/
-    return Ok(())
+    return Ok(());
 }
 
 pub const fn table_level_to_table_shift(
@@ -239,7 +250,7 @@ pub const fn calculate_number_of_concatenated_page_tables(
 fn allocate_page_table_for_stage_2(
     look_up_level: i8,
     t0sz: u8,
-    is_for_ttbr: bool,//translate table base register の略でこれはx64 では CR3レジスタ
+    is_for_ttbr: bool, //translate table base register の略でこれはx64 では CR3レジスタ
     number_of_tables: u8,
 ) -> Result<usize, ()> {
     assert_ne!(number_of_tables, 0);
