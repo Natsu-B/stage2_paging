@@ -13,6 +13,7 @@ use core::arch::asm;
 use crate::cpu::*;
 use crate::paging::PAGE_SHIFT;
 use crate::uefi::{EfiHandle, EfiSystemTable};
+use core::mem::MaybeUninit;
 
 const PL011: usize = 0x09000000;
 
@@ -28,6 +29,7 @@ mod mmio {
 
 static mut IMAGE_HANDLE: EfiHandle = 0;
 static mut SYSTEM_TABLE: *const EfiSystemTable = core::ptr::null();
+static mut INTERRUPT_FLAG: MaybeUninit<InterruptFlag> = MaybeUninit::uninit();
 
 /// The memory size to allocate
 pub const ALLOC_SIZE: usize = 256 * 1024 * 1024; /* 256 MB */
@@ -184,15 +186,29 @@ fn set_up_el1() {
 }
 
 extern "C" fn el1_main() -> ! {
-    let text = "Hello,world!\nLet's make a hypervisor!!\n";
+    let text = "Hello,world!\nBooting Linux...\n";
 
     for c in text.as_bytes() {
         putc(*c);
     }
+    local_irq_fiq_restore(unsafe { INTERRUPT_FLAG.assume_init_ref().clone() });
 
-    loop {
-        unsafe { core::arch::asm!("wfi") }
+    assert_eq!(get_current_el() >> 2, 1, "Failed to jump to EL1");
+    println!("Hello,world! from EL1");
+
+    exit_bootloader();
+}
+
+fn exit_bootloader() -> ! {
+    unsafe {
+        ((*(*SYSTEM_TABLE).efi_boot_services).exit)(
+            IMAGE_HANDLE,
+            uefi::EfiStatus::EfiSuccess,
+            0,
+            core::ptr::null(),
+        );
     }
+    panic!("Failed to exit");
 }
 
 fn el2_to_el1(el1_entry_point: usize, el1_stack_pointer: usize) {

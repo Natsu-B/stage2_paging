@@ -138,6 +138,7 @@ pub fn map_address_stage2(mut physical_address: usize, mut map_size: usize) -> R
     setup_stage2_translationの部分でのallocate_page_table~では、最上位ページのみallocateしてるから初期化処理が終わったあと次のページをallocateしないと
     初期化処理をしたい、、、どうしよ
     table_levelを table_address から再帰的に呼び出すたびに+1してって 3 になれば終了
+    blockpagingをやりたい
 */
 fn _setup_stage_2_translation(
     table_address: usize,
@@ -204,6 +205,7 @@ fn _setup_stage_2_translation(
             }
         }
     }
+    //MilvusVisorはブロックページングを採用しているから、これと同じようにページングするとメモリを使いすぎる
     /*
     if table_level >= 1 {
         for e in page_table {
