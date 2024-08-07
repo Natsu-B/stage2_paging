@@ -82,7 +82,7 @@ pub fn setup_stage_2_translation() -> Result<(), ()> {
     for e in page_table {
         *e = 0;
     }
-    //_setup_stage_2_translation(table_address, table_level, t0sz, number_of_tables as usize, &mut physical_address)?;
+    _setup_stage_2_translation(table_address, table_level, t0sz, number_of_tables as usize, &mut physical_address)?;
     let vtcr_el2: u64 = VTCR_EL2_RES1
         | ((ps as u64) << VTCR_EL2_PS_BITS_OFFSET)
         | (0 << VTCR_EL2_TG0_BITS_OFFSET)
@@ -99,40 +99,6 @@ pub fn setup_stage_2_translation() -> Result<(), ()> {
     Ok(())
 }
 
-pub fn map_address_stage2(mut physical_address: usize, mut map_size: usize) -> Result<(), ()> {
-    if (map_size & ((1usize << PAGE_SHIFT) - 1)) != 0 {
-        println!("Map size is not aligned.");
-        return Err(());
-    }
-    let mut num_of_pages = map_size / PAGE_SIZE;
-    let page_table_address = get_vttbr_el2() as usize;
-    let vtcr_el2 = get_vtcr_el2();
-    let sl0 = ((vtcr_el2 & VTCR_EL2_SL0) >> VTCR_EL2_SL0_BITS_OFFSET) as u8;
-    let t0sz = ((vtcr_el2 & VTCR_EL2_T0SZ) >> VTCR_EL2_T0SZ_BITS_OFFSET) as u8;
-    let table_level: i8 = match sl0 {
-        0b00 => 2,
-        0b01 => 1,
-        0b10 => 0,
-        0b11 => 3,
-        _ => unreachable!(),
-    };
-    println!("get table level {:#X}", table_level);
-    println!(
-        "first num_of_entries: {:#X}",
-        (calculate_number_of_concatenated_page_tables(t0sz, table_level) as usize) * 512
-    );
-    _setup_stage_2_translation(
-        page_table_address,
-        table_level,
-        t0sz,
-        calculate_number_of_concatenated_page_tables(t0sz, table_level) as usize,
-        &mut physical_address,
-        &mut num_of_pages,
-    )?;
-    flush_tlb_el1();
-    Ok(())
-}
-
 /*
     table_level: i8 から初めてtable level 3まで 実行
     setup_stage2_translationの部分でのallocate_page_table~では、最上位ページのみallocateしてるから初期化処理が終わったあと次のページをallocateしないと
@@ -146,7 +112,6 @@ fn _setup_stage_2_translation(
     t0sz: u8,
     number_of_tables: usize,
     physical_address: &mut usize,
-    num_of_pages: &mut usize,
 ) -> Result<(), ()> {
     let mut i = 0;
     let shift_level = table_level_to_table_shift(STAGE_2_PAGE_SHIFT, table_level);
@@ -162,7 +127,7 @@ fn _setup_stage_2_translation(
             (PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>(),
         )
     };
-
+    /*
     if (3 == table_level) {
         //page_table3(bottom)の初期化処理
         for e in page_table[table_index..].iter_mut() {
@@ -204,9 +169,9 @@ fn _setup_stage_2_translation(
                 return Ok(());
             }
         }
-    }
+    }*/
     //MilvusVisorはブロックページングを採用しているから、これと同じようにページングするとメモリを使いすぎる
-    /*
+    //*
     if table_level >= 1 {
         for e in page_table {
             *e = (*physical_address as u64) | 2045;
@@ -225,7 +190,7 @@ fn _setup_stage_2_translation(
             )?;
             *e = (next_table_address as u64) | 0b11;
         }
-    }*/
+    }//*/
     return Ok(());
 }
 

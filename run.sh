@@ -8,6 +8,8 @@ qemu-system-aarch64 \
   -smp 4 -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd -cpu cortex-a53 -m 2G \
   -nographic -device virtio-blk-device,drive=disk \
   -drive file=fat:rw:bin/,format=raw,if=none,media=disk,id=disk \
-  -cdrom ~/alpine-virt-3.20.2-aarch64.iso
+  -cdrom ~/alpine-virt-3.20.2-aarch64.iso \
+  -boot menu=on
 
   #  -smp 4 -bios QEMU_EFI.fd -cpu cortex-a53 -m 2G \
+  #  , dumpdtb=qemu.dtb \\dtbを得るための処理
