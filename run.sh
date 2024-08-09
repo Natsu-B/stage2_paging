@@ -12,4 +12,4 @@ qemu-system-aarch64 \
   -boot menu=on
 
   #  -smp 4 -bios QEMU_EFI.fd -cpu cortex-a53 -m 2G \
-  #  , dumpdtb=qemu.dtb \\dtbを得るための処理
+  #  , dumpdtb=qemu.dtb #dtbを得るための処理

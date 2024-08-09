@@ -113,7 +113,6 @@ fn _setup_stage_2_translation(
     number_of_tables: usize,
     physical_address: &mut usize,
 ) -> Result<(), ()> {
-    let mut i = 0;
     let shift_level = table_level_to_table_shift(STAGE_2_PAGE_SHIFT, table_level);
     let table_index = (*physical_address >> shift_level)
         & (((PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>()) - 1);
@@ -127,57 +126,14 @@ fn _setup_stage_2_translation(
             (PAGE_TABLE_SIZE * number_of_tables) / core::mem::size_of::<u64>(),
         )
     };
-    /*
-    if (3 == table_level) {
-        //page_table3(bottom)の初期化処理
-        for e in page_table[table_index..].iter_mut() {
-            *e = (*physical_address as u64)
-                | PAGE_DESCRIPTORS_AF
-                | PAGE_DESCRIPTORS_SH_INNER_SHAREABLE
-                | PAGE_DESCRIPTORS_AP
-                | PAGE_DESCRIPTORS_ATTR
-                | 0b11; //初期化するよ
-            *physical_address += 1 << shift_level;
-            *num_of_pages -= 1;
-            if *num_of_pages == 0 {
-                return Ok(());
-            }
-        }
-    } else {
-        //その他page_tableの初期化
-        for e in page_table[table_index..].iter_mut() {
-            let next_table_address: usize;
-            if *e & 0b11 == 0b11 {
-                next_table_address = (*e as usize) & !0b11;
-                println!("Level{}[{}]: Exists", table_level, i);
-            } else {
-                next_table_address =
-                    allocate_page_table_for_stage_2(table_level + 1, t0sz, false, 1)?;
-                println!("Level{}[{}]: Allocated", table_level, i);
-            }
-            i += 1;
-            _setup_stage_2_translation(
-                next_table_address,
-                table_level + 1,
-                t0sz,
-                1,
-                physical_address,
-                num_of_pages,
-            )?;
-            *e = (next_table_address as u64) | 0b11; //初期化するよ
-            if *num_of_pages == 0 {
-                return Ok(());
-            }
-        }
-    }*/
-    //MilvusVisorはブロックページングを採用しているから、これと同じようにページングするとメモリを使いすぎる
+    //MilvusVisorと同様にblockpagingにした 
     //*
     if table_level >= 1 {
         for e in page_table {
             *e = (*physical_address as u64) | 2045;
             *physical_address += 1 << shift_level;
         }
-    } else {
+    } else {//tablelevelが0or-1のときだけ再帰的にpagingして、1以上ではblockに
         for e in page_table {
             let next_table_address =
                 allocate_page_table_for_stage_2(table_level + 1, t0sz, false, 1)?;
