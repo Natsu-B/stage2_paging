@@ -13,23 +13,17 @@ use core::arch::asm;
 use crate::cpu::*;
 use crate::paging::PAGE_SHIFT;
 use crate::uefi::{EfiHandle, EfiSystemTable};
-use core::mem::MaybeUninit;
 
 const PL011: usize = 0x09000000;
 
 #[macro_use]
 mod console;
 mod cpu;
-mod exception;
 mod paging;
 mod uefi;
-mod mmio {
-    pub mod pl011;
-}
 
 static mut IMAGE_HANDLE: EfiHandle = 0;
 static mut SYSTEM_TABLE: *const EfiSystemTable = core::ptr::null();
-static mut INTERRUPT_FLAG: MaybeUninit<InterruptFlag> = MaybeUninit::uninit();
 
 /// The memory size to allocate
 pub const ALLOC_SIZE: usize = 256 * 1024 * 1024; /* 256 MB */
@@ -62,6 +56,8 @@ extern "C" fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTabl
     assert_eq!(get_current_el() >> 2, 2, "Expected CurrentEL is EL2");
 
     paging::setup_stage_2_translation().expect("Failed to setup Stage2 Paging"); //ここ変える
+
+    /* Stack for BSP */
     let stack_address = allocate_memory(STACK_PAGES, None).expect("Failed to alloc stack")
         + (STACK_PAGES << PAGE_SHIFT);
 
@@ -71,11 +67,10 @@ extern "C" fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTabl
     /* After disabling IRQ/FIQ, we should avoid calling UEFI functions */
     local_irq_fiq_save();
 
-    exception::setup_exception();
     set_up_el1();
 
     /* Jump to EL1(el1_main) */
-    el2_to_el1(el1_main as *const fn() as usize, stack_address);//このel1_entry_pointに飛ぶ
+    el2_to_el1(el1_main as *const fn() as usize, stack_address);
     panic!("Failed to jump EL1");
 }
 
@@ -183,16 +178,11 @@ fn set_up_el1() {
 }
 
 extern "C" fn el1_main() -> ! {
-    let text = "Hello,world!\nBooting Linux...\n";
+    let text = "Hello,world!\nLet's make a hypervisor!!\n";
 
     for c in text.as_bytes() {
         putc(*c);
     }
-    local_irq_fiq_restore(unsafe { INTERRUPT_FLAG.assume_init_ref().clone() });
-
-    assert_eq!(get_current_el() >> 2, 1, "Failed to jump to EL1");
-    println!("Hello,world! from EL1");
-
     exit_bootloader();
 }
 
